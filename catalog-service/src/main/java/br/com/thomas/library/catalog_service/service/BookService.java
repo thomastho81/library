@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,7 +36,6 @@ public class BookService {
         }
 
         Book book = bookMapper.toEntity(request);
-        book.setId(UUID.randomUUID().toString());
         book.setActive(true);
         book.setCreatedAt(LocalDateTime.now());
 
@@ -66,7 +64,7 @@ public class BookService {
                 || (genre != null && !genre.isBlank());
     }
 
-    public BookResponse getBookById(String id) {
+    public BookResponse getBookById(Long id) {
         log.info("Buscando livro por ID: {}", id);
         Book book = bookRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new IllegalArgumentException("Livro não encontrado ou inativo: " + id));
@@ -74,7 +72,7 @@ public class BookService {
     }
 
     @Transactional
-    public BookResponse updateBook(String id, BookRequest request) {
+    public BookResponse updateBook(Long id, BookRequest request) {
         log.info("Atualizando livro: {}", id);
 
         Book book = bookRepository.findByIdAndActiveTrue(id)
@@ -99,7 +97,7 @@ public class BookService {
     }
 
     @Transactional
-    public void deleteBook(String id) {
+    public void deleteBook(Long id) {
         log.info("Soft delete do livro: {}", id);
 
         Book book = bookRepository.findByIdAndActiveTrue(id)

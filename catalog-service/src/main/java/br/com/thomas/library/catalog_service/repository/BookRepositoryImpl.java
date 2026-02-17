@@ -1,38 +1,53 @@
 package br.com.thomas.library.catalog_service.repository;
 
 import br.com.thomas.library.catalog_service.model.Book;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
 public class BookRepositoryImpl implements BookRepositoryCustom {
 
-    private final MongoTemplate mongoTemplate;
+    private final EntityManager entityManager;
 
+    /**
+     * Busca parametrizada usando EntityManager + Criteria API (JPA).
+     * Filtros opcionais: active=true sempre; title/author (LIKE case-insensitive); category/genre (igual).
+     */
     @Override
     public List<Book> findActiveByFilters(String title, String author, String category, String genre) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("active").is(true));
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Book> cq = cb.createQuery(Book.class);
+        Root<Book> root = cq.from(Book.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.isTrue(root.get("active")));
 
         if (title != null && !title.isBlank()) {
-            query.addCriteria(Criteria.where("title").regex(title, "i"));
+            predicates.add(cb.like(cb.lower(root.get("title")), "%" + title.toLowerCase() + "%"));
         }
         if (author != null && !author.isBlank()) {
-            query.addCriteria(Criteria.where("author").regex(author, "i"));
+            predicates.add(cb.like(cb.lower(root.get("author")), "%" + author.toLowerCase() + "%"));
         }
         if (category != null && !category.isBlank()) {
-            query.addCriteria(Criteria.where("category").is(category));
+            predicates.add(cb.equal(root.get("category"), category));
         }
         if (genre != null && !genre.isBlank()) {
-            query.addCriteria(Criteria.where("genre").is(genre));
+            predicates.add(cb.equal(root.get("genre"), genre));
         }
 
-        return mongoTemplate.find(query, Book.class);
+        cq.where(predicates.toArray(new Predicate[0]));
+
+        TypedQuery<Book> query = entityManager.createQuery(cq);
+        return query.getResultList();
     }
 }

@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class BookPropagationPayload implements PropagationPayload {
 
-    private String id;
+    private Long id;
     private String title;
     private String author;
     private String category;

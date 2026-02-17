@@ -1,21 +1,22 @@
 # Docker Compose - Catalog Service (ambiente local / desenvolvimento)
-# MongoDB + RabbitMQ (com interface web de gerenciamento).
+# PostgreSQL + RabbitMQ (com interface web de gerenciamento).
 # Uso: a partir da pasta docker/ execute: docker compose up -d
 
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: catalog-mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: catalog-postgres
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: catalog_user
-      MONGO_INITDB_ROOT_PASSWORD: catalog_secret
+      POSTGRES_USER: catalog_user
+      POSTGRES_PASSWORD: catalog_secret
+      POSTGRES_DB: catalog_db
     ports:
-      - "27017:27017"
+      - "5432:5432"
     volumes:
-      - mongodb_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "mongosh 'mongodb://catalog_user:catalog_secret@localhost:27017/admin' --eval 'db.adminCommand(\"ping\")' --quiet || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U catalog_user -d catalog_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,5 +40,5 @@ services:
       start_period: 15s
 
 volumes:
-  mongodb_data:
-    name: catalog_mongodb_data
+  postgres_data:
+    name: catalog_postgres_data
