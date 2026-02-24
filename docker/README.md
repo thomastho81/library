@@ -1,6 +1,6 @@
-# Docker - Catalog Service
+# Docker – Biblioteca distribuída (centralizado)
 
-Ambiente local com **PostgreSQL** e **RabbitMQ** (management) para o **catalog-service**.
+Ambiente local centralizado: **PostgreSQL** do catalog-service, **PostgreSQL** do inventory-service e **RabbitMQ** compartilhado. Uso: catalog-service publica eventos; inventory-service consome.
 
 ## Pré-requisitos
 
@@ -14,12 +14,17 @@ Na pasta `docker/`:
 docker compose up -d
 ```
 
-Sobe **PostgreSQL** (porta 5432) e **RabbitMQ** (AMQP 5672, Management UI 15672).
+Sobe:
+
+- **PostgreSQL catalog** (porta 5432) – `catalog-postgres`
+- **PostgreSQL inventory** (porta 5433) – `inventory-postgres`
+- **RabbitMQ** (AMQP 5672, Management UI 15672) – `library-rabbitmq`
 
 Para ver os logs:
 
 ```bash
 docker compose logs -f postgres
+docker compose logs -f inventory-postgres
 docker compose logs -f rabbitmq
 ```
 
@@ -66,10 +71,21 @@ Ajuste host, porta, usuário e senha se usar `.env` ou outro ambiente.
 ## RabbitMQ – interface web (Management)
 
 - **URL:** http://localhost:15672  
-- **Usuário:** `catalog_user`  
-- **Senha:** `catalog_secret`  
+- **Usuário:** `library_user`  
+- **Senha:** `library_secret`  
 
-Na interface é possível ver exchanges, filas, bindings e mensagens. A exchange `catalog.topic` e as filas são criadas automaticamente quando o catalog-service publica/consome.
+Na interface é possível ver exchanges, filas, bindings e mensagens. A exchange `catalog.topic` e as filas do inventory-service (`inventory.book.created`, etc.) são criadas automaticamente ao publicar/consumir.
+
+## Conexão do inventory-service (PostgreSQL)
+
+No `application.properties` do **inventory-service**:
+
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5433/inventory_db
+spring.datasource.username=inventory_user
+spring.datasource.password=inventory_secret
+spring.datasource.driver-class-name=org.postgresql.Driver
+```
 
 ## Conexão do catalog-service ao RabbitMQ
 
@@ -78,8 +94,8 @@ No `application.properties` (para propagação e consumidores Camel):
 ```properties
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
-spring.rabbitmq.username=catalog_user
-spring.rabbitmq.password=catalog_secret
+spring.rabbitmq.username=library_user
+spring.rabbitmq.password=library_secret
 ```
 
 ## Versões
