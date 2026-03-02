@@ -59,4 +59,24 @@ public class Inventory {
 
     @Column(name = "data_atualizacao")
     private LocalDateTime updatedAt;
+
+    /**
+     * Reserves quantity of copies (available → reserved) and updates updatedAt.
+     * Caller must validate availability before calling.
+     */
+    public void reserve(int quantity) {
+        this.availableCopies = this.availableCopies - quantity;
+        this.reservedCopies = this.reservedCopies + quantity;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Releases quantity of copies (reserved → available) and updates updatedAt.
+     * Caller must validate reserved copies before calling.
+     */
+    public void release(int quantity) {
+        this.reservedCopies = this.reservedCopies - quantity;
+        this.availableCopies = this.availableCopies + quantity;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

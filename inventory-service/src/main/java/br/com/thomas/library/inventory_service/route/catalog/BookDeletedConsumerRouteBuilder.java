@@ -1,4 +1,4 @@
-package br.com.thomas.library.inventory_service.route;
+package br.com.thomas.library.inventory_service.route.catalog;
 
 import br.com.thomas.library.inventory_service.dto.propagation.BookPropagationPayload;
 import br.com.thomas.library.inventory_service.service.InventorySyncService;
@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Consome eventos catalog.book.deleted da exchange topic (catalog.topic).
+ * Consome eventos <strong>catalog-service</strong>: catalog.book.deleted (exchange catalog.topic).
  * Marca o registro de inventário como inativo (soft delete).
  */
 @Component
@@ -22,9 +22,9 @@ public class BookDeletedConsumerRouteBuilder extends RouteBuilder {
     @Override
     public void configure() {
         from(consumerUri())
-                .routeId("DELETE_ROUTE")
+                .routeId("CATALOG_DELETE_ROUTE")
                 .unmarshal().json(BookPropagationPayload.class)
-                .log("Evento book.deleted recebido - bookId=${body.id}, title=${body.title}")
+                .log("Evento book.deleted recebido (catalog) - bookId=${body.id}, title=${body.title}")
                 .bean(InventorySyncService.class, "onBookDeleted");
     }
 

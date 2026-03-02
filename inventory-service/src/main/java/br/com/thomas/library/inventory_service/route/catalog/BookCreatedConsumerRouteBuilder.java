@@ -1,4 +1,4 @@
-package br.com.thomas.library.inventory_service.route;
+package br.com.thomas.library.inventory_service.route.catalog;
 
 import br.com.thomas.library.inventory_service.dto.propagation.BookPropagationPayload;
 import br.com.thomas.library.inventory_service.service.InventorySyncService;
@@ -7,13 +7,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Consome eventos catalog.book.updated da exchange topic (catalog.topic).
+ * Consome eventos <strong>catalog-service</strong>: catalog.book.created (exchange catalog.topic).
  */
 @Component
-public class BookUpdatedConsumerRouteBuilder extends RouteBuilder {
+public class BookCreatedConsumerRouteBuilder extends RouteBuilder {
 
-    private static final String ROUTING_KEY = "catalog.book.updated";
-    private static final String QUEUE = "inventory.book.updated";
+    private static final String ROUTING_KEY = "catalog.book.created";
+    private static final String QUEUE = "inventory.book.created";
 
     @Value("${catalog.propagation.exchange:catalog.topic}")
     private String exchangeName;
@@ -21,10 +21,10 @@ public class BookUpdatedConsumerRouteBuilder extends RouteBuilder {
     @Override
     public void configure() {
         from(consumerUri())
-                .routeId("UPDATE_ROUTE")
+                .routeId("CATALOG_CREATE_ROUTE")
                 .unmarshal().json(BookPropagationPayload.class)
-                .log("Evento book.updated recebido - bookId=${body.id}, title=${body.title}")
-                .bean(InventorySyncService.class, "onBookUpdated");
+                .log("Evento book.created recebido (catalog) - bookId=${body.id}, title=${body.title}")
+                .bean(InventorySyncService.class, "onBookCreated");
     }
 
     private String consumerUri() {

@@ -11,3 +11,15 @@ CREATE TABLE IF NOT EXISTS tb_inventario (
     data_atualizacao    TIMESTAMP,
     CONSTRAINT uk_inventario_id_livro UNIQUE (id_livro)
 );
+
+-- Eventos recebidos (idempotência). Operação: 1=Reserva, 2=Devolução. Status: 1=Processado, 2=Rejeitado.
+-- Se a tabela já existir sem a coluna status: ALTER TABLE tb_evento_processado ADD COLUMN status INTEGER NOT NULL DEFAULT 1;
+CREATE TABLE IF NOT EXISTS tb_evento_processado (
+    id_evento       VARCHAR(36) PRIMARY KEY,
+    id_aluguel      BIGINT NOT NULL,
+    id_livro        BIGINT NOT NULL,
+    operacao        INTEGER NOT NULL,
+    quantidade      INTEGER NOT NULL,
+    status          INTEGER NOT NULL DEFAULT 1,
+    processado_em   TIMESTAMP NOT NULL
+);

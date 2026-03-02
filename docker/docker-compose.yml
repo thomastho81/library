@@ -1,6 +1,6 @@
 # Docker Compose - Biblioteca distribuída (ambiente local / desenvolvimento)
-# Centraliza todas as imagens necessárias: PostgreSQL (catalog + inventory), RabbitMQ.
-# catalog-service e inventory-service conectam ao mesmo RabbitMQ (event-driven).
+# Centraliza todas as imagens necessárias: PostgreSQL (catalog + inventory + rental), RabbitMQ.
+# catalog-service, inventory-service e rental-service conectam ao mesmo RabbitMQ (event-driven).
 # Uso: a partir da pasta docker/ execute: docker compose up -d
 
 services:
@@ -44,6 +44,26 @@ services:
       retries: 5
       start_period: 10s
 
+  # PostgreSQL do rental-service
+  rental-postgres:
+    image: postgres:16-alpine
+    container_name: rental-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rental_user
+      POSTGRES_PASSWORD: rental_secret
+      POSTGRES_DB: rental_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - rental_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rental_user -d rental_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # RabbitMQ compartilhado (catalog publica eventos; inventory consome)
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -67,3 +87,5 @@ volumes:
     name: catalog_postgres_data
   inventory_postgres_data:
     name: inventory_postgres_data
+  rental_postgres_data:
+    name: rental_postgres_data

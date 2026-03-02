@@ -1,2 +1,0 @@
--- Scripts de dados iniciais (opcional).
--- Executado após schema.sql na subida da aplicação.
