@@ -7,6 +7,7 @@ import br.com.thomas.library.rental_service.model.RentalStatus;
 import br.com.thomas.library.rental_service.repository.RentalRepository;
 import br.com.thomas.library.rental_service.service.propagation.PropagationService;
 import br.com.thomas.library.rental_service.service.propagation.ReserveEventPayload;
+import br.com.thomas.library.rental_service.service.propagation.ReturnEventPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,7 +48,7 @@ public class RentalService {
             propagationService.publishReserve(payload);
         } catch (Exception e) {
             log.error("Falha ao publicar evento de reserva para rentalId={}, compensando com CANCELLED", rentalId, e);
-            compensateWithStatus(rental, RentalStatus.CANCELLED);
+            compensateWithStatus(rental);
             throw e;
         }
 
@@ -70,8 +71,8 @@ public class RentalService {
     /**
      * Compensa o Rental com o status indicado (ex.: CANCELLED em falha de publicação).
      */
-    private void compensateWithStatus(Rental rental, RentalStatus status) {
-        rental.setStatus(status);
+    private void compensateWithStatus(Rental rental) {
+        rental.setStatus(RentalStatus.CANCELLED);
         rentalRepository.save(rental);
     }
 
@@ -79,6 +80,42 @@ public class RentalService {
         Rental rental = rentalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Rental não encontrado: id=" + id));
         return toResponse(rental);
+    }
+
+    /**
+     * Registra devolução: valida Rental RESERVED, publica evento rental.inventory.return,
+     * atualiza para RETURNED e data_devolucao. Retorna 200 com Rental atualizado.
+     * Em falha na publicação, a exceção propaga (rental permanece RESERVED; cliente pode retry).
+     */
+    @Transactional
+    public RentalResponse registerReturn(Long rentalId) {
+        Rental rental = rentalRepository.findById(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Rental não encontrado: id=" + rentalId));
+        if (rental.getStatus() != RentalStatus.RESERVED) {
+            throw new IllegalStateException(
+                    "Rental não está reservado: id=" + rentalId + ", status=" + rental.getStatus());
+        }
+
+        String eventId = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now();
+        ReturnEventPayload payload = buildReturnEventPayload(eventId, rental.getId(), rental.getBookId(), rental.getQuantity(), now);
+        propagationService.publishReturn(payload);
+
+        rental.setStatus(RentalStatus.RETURNED);
+        rental.setReturnedAt(now);
+        rentalRepository.save(rental);
+
+        return toResponse(rental);
+    }
+
+    private ReturnEventPayload buildReturnEventPayload(String eventId, Long rentalId, Long bookId, Integer quantity, LocalDateTime eventDate) {
+        return ReturnEventPayload.builder()
+                .eventId(eventId)
+                .rentalId(rentalId)
+                .bookId(bookId)
+                .quantity(quantity)
+                .eventDate(eventDate)
+                .build();
     }
 
     private RentalResponse toResponse(Rental rental) {

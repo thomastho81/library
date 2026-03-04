@@ -31,4 +31,14 @@ public class RentalController {
         RentalResponse response = rentalService.getById(id);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Registra devolução do aluguel. Rental deve existir e estar com status RESERVED.
+     * Publica evento para o inventory e atualiza para RETURNED + data_devolucao.
+     */
+    @PutMapping("/{id}/return")
+    public ResponseEntity<RentalResponse> registerReturn(@PathVariable Long id) {
+        RentalResponse response = rentalService.registerReturn(id);
+        return ResponseEntity.ok(response);
+    }
 }

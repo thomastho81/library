@@ -16,6 +16,7 @@ public class PropagationService {
 
     private static final String EXCHANGE_TYPE_TOPIC = "topic";
     private static final String ROUTING_KEY_RESERVE = "rental.inventory.reserve";
+    private static final String ROUTING_KEY_RETURN = "rental.inventory.return";
 
     private final FluentProducerTemplate fluentProducerTemplate;
     private final ObjectMapper objectMapper;
@@ -38,6 +39,23 @@ public class PropagationService {
                 .send();
 
         log.debug("Evento rental.inventory.reserve publicado: eventId={}, rentalId={}", payload.getEventId(), payload.getRentalId());
+    }
+
+    /**
+     * Publica evento de devolução para o inventory-service (rental.topic, rental.inventory.return).
+     */
+    public void publishReturn(ReturnEventPayload payload) {
+        String body = toJson(payload);
+        String endpointUri = String.format("spring-rabbitmq:%s?exchangeType=%s", exchangeName, EXCHANGE_TYPE_TOPIC);
+
+        fluentProducerTemplate
+                .to(endpointUri)
+                .withHeader(SpringRabbitMQConstants.ROUTING_OVERRIDE_KEY, ROUTING_KEY_RETURN)
+                .withHeader(SpringRabbitMQConstants.CONTENT_TYPE, "application/json")
+                .withBody(body)
+                .send();
+
+        log.debug("Evento rental.inventory.return publicado: eventId={}, rentalId={}", payload.getEventId(), payload.getRentalId());
     }
 
     private String toJson(Object payload) {
