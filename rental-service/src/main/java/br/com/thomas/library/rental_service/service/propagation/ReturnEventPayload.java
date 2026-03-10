@@ -20,6 +20,7 @@ public class ReturnEventPayload {
 
     private String eventId;
     private Long rentalId;
+    private Long userId;
     private Long bookId;
     private Integer quantity;
 

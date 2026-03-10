@@ -12,8 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * Registro de aluguel: uma única entidade para o ciclo reserva → devolução.
- * Ao reservar: cria-se com status RESERVED e data_reserva. Ao devolver: atualiza-se para RETURNED e data_devolucao.
- * Usuário e preço ficam de fora do escopo inicial.
+ * Vinculado a um usuário (userId).
  */
 @Entity
 @Table(name = "tb_aluguel")
@@ -27,6 +26,10 @@ public class Rental {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    @NotNull
+    @Column(name = "id_usuario", nullable = false)
+    private Long userId;
 
     @NotNull
     @Column(name = "id_livro", nullable = false)

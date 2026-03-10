@@ -1,8 +1,10 @@
 package br.com.thomas.library.inventory_service.service;
 
+import br.com.thomas.library.inventory_service.dto.propagation.BookAvailabilityPayload;
 import br.com.thomas.library.inventory_service.dto.propagation.BookPropagationPayload;
 import br.com.thomas.library.inventory_service.model.Inventory;
 import br.com.thomas.library.inventory_service.repository.InventoryRepository;
+import br.com.thomas.library.inventory_service.service.propagation.InventoryPropagationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import java.time.LocalDateTime;
 /**
  * Sincroniza inventário a partir dos eventos (book.created, book.updated, book.deleted)
  * publicados pelo catalog-service na exchange topic.
+ * Publica disponibilidade (inventory.book.availability) para o search-service.
  */
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ import java.time.LocalDateTime;
 public class InventorySyncService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryPropagationService propagationService;
 
     @Transactional
     public void onBookCreated(BookPropagationPayload payload) {
@@ -41,6 +45,7 @@ public class InventorySyncService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         inventoryRepository.save(inventory);
+        propagationService.publishAvailability(toAvailabilityPayload(inventory));
         log.info("Inventário criado para bookId={}", payload.getId());
     }
 
@@ -55,6 +60,7 @@ public class InventorySyncService {
                         inv -> {
                             inv.setUpdatedAt(LocalDateTime.now());
                             inventoryRepository.save(inv);
+                            propagationService.publishAvailability(toAvailabilityPayload(inv));
                             log.debug("Inventário atualizado para bookId={}", payload.getId());
                         },
                         () -> {
@@ -69,6 +75,7 @@ public class InventorySyncService {
                                     .updatedAt(LocalDateTime.now())
                                     .build();
                             inventoryRepository.save(inventory);
+                            propagationService.publishAvailability(toAvailabilityPayload(inventory));
                             log.info("Inventário criado (sync) para bookId={}", payload.getId());
                         }
                 );
@@ -85,7 +92,17 @@ public class InventorySyncService {
                     inv.setActive(false);
                     inv.setUpdatedAt(LocalDateTime.now());
                     inventoryRepository.save(inv);
+                    propagationService.publishAvailability(toAvailabilityPayload(inv));
                     log.info("Inventário marcado como inativo para bookId={}", payload.getId());
                 });
+    }
+
+    private static BookAvailabilityPayload toAvailabilityPayload(Inventory inv) {
+        return BookAvailabilityPayload.builder()
+                .bookId(inv.getBookId())
+                .totalCopies(inv.getTotalCopies())
+                .availableCopies(inv.getAvailableCopies())
+                .updatedAt(inv.getUpdatedAt())
+                .build();
     }
 }

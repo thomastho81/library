@@ -17,6 +17,7 @@ import java.util.Map;
 public class RentalResponse {
 
     private Long id;
+    private Long userId;
     private Long bookId;
     private Integer quantity;
     private RentalStatus status;

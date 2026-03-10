@@ -1,10 +1,11 @@
-package br.com.thomas.library.inventory_service.dto.rental;
+package br.com.thomas.library.rental_service.dto.return_result;
 
-import br.com.thomas.library.inventory_service.constants.DateFormatConstants;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,23 +14,23 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Payload do evento de devolução de cópias (rental-service → inventory-service).
- * eventId garante idempotência no consumo.
+ * Payload do evento de resultado da devolução (inventory-service → rental-service).
+ * Routing key: inventory.rental.return.result
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RentalReturnPayload {
+public class ReturnResultPayload {
 
     private String eventId;
     private Long rentalId;
-    private Long userId;
-    private Long bookId;
-    private Integer quantity;
+    private Boolean success;
+    private String reason;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = DateFormatConstants.LOCAL_DATE_TIME)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonSerialize(using = LocalDateTimeSerializer.class)
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
-    private LocalDateTime eventDate;
+    private LocalDateTime processedAt;
 }

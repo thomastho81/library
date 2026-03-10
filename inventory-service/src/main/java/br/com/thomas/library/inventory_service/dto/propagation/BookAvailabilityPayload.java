@@ -1,4 +1,4 @@
-package br.com.thomas.library.inventory_service.dto.rental;
+package br.com.thomas.library.inventory_service.dto.propagation;
 
 import br.com.thomas.library.inventory_service.constants.DateFormatConstants;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -13,23 +13,22 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Payload do evento de devolução de cópias (rental-service → inventory-service).
- * eventId garante idempotência no consumo.
+ * Payload de disponibilidade de livro para o search-service.
+ * Publicado na exchange (rental.topic) com routing key inventory.book.availability
+ * quando o inventário é criado/alterado ou após reserva/devolução bem sucedida.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RentalReturnPayload {
+public class BookAvailabilityPayload {
 
-    private String eventId;
-    private Long rentalId;
-    private Long userId;
     private Long bookId;
-    private Integer quantity;
+    private Integer totalCopies;
+    private Integer availableCopies;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = DateFormatConstants.LOCAL_DATE_TIME)
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
-    private LocalDateTime eventDate;
+    private LocalDateTime updatedAt;
 }

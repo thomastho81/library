@@ -15,7 +15,8 @@ public enum RentalStatus {
     RESERVED(1, "Reservado"),
     RETURNED(2, "Devolvido"),
     CANCELLED(3, "Cancelado"),
-    RESERVE_FAILED(4, "Reserva processada com erro");
+    RESERVE_FAILED(4, "Reserva processada com erro"),
+    RETURNING(5, "Em devolução");
 
     private final int id;
     private final String descricao;

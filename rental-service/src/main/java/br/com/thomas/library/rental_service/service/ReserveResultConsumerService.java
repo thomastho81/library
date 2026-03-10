@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class ReserveResultConsumerService {
-
+//TODO: fazer entryPoints de SAGA nos services de consumo do processo
     private final RentalRepository rentalRepository;
 
     @Transactional

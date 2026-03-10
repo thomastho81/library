@@ -1,11 +1,13 @@
 package br.com.thomas.library.inventory_service.service;
 
+import br.com.thomas.library.inventory_service.dto.propagation.BookAvailabilityPayload;
 import br.com.thomas.library.inventory_service.dto.request.InventoryQuantityChangeRequest;
 import br.com.thomas.library.inventory_service.dto.request.InventoryRequest;
 import br.com.thomas.library.inventory_service.dto.response.InventoryResponse;
 import br.com.thomas.library.inventory_service.mapper.InventoryMapper;
 import br.com.thomas.library.inventory_service.model.Inventory;
 import br.com.thomas.library.inventory_service.repository.InventoryRepository;
+import br.com.thomas.library.inventory_service.service.propagation.InventoryPropagationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +18,7 @@ import java.time.LocalDateTime;
 /**
  * Regras de negócio de inventário: criar estoque, aumentar e reduzir exemplares.
  * Operações só afetam registros ativos (active = true).
- * Disponibilidade: available = (availableCopies > 0).
+ * Após qualquer alteração, publica inventory.book.availability para o search-service.
  */
 @Service
 @RequiredArgsConstructor
@@ -25,6 +27,7 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryMapper inventoryMapper;
+    private final InventoryPropagationService propagationService;
 
     @Transactional
     public InventoryResponse create(InventoryRequest request) {
@@ -48,6 +51,7 @@ public class InventoryService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         inventory = inventoryRepository.save(inventory);
+        propagationService.publishAvailability(toAvailabilityPayload(inventory));
         log.info("Estoque inicial criado para bookId={}, totalCopies={}", request.getBookId(), total);
         return inventoryMapper.toResponse(inventory);
     }
@@ -64,6 +68,7 @@ public class InventoryService {
         inv.setAvailableCopies(inv.getAvailableCopies() + amount);
         inv.setUpdatedAt(LocalDateTime.now());
         inv = inventoryRepository.save(inv);
+        propagationService.publishAvailability(toAvailabilityPayload(inv));
         log.info("Estoque aumentado para bookId={}, amount={}, novo total={}", bookId, amount, inv.getTotalCopies());
         return inventoryMapper.toResponse(inv);
     }
@@ -84,7 +89,17 @@ public class InventoryService {
         inv.setAvailableCopies(inv.getAvailableCopies() - amount);
         inv.setUpdatedAt(LocalDateTime.now());
         inv = inventoryRepository.save(inv);
+        propagationService.publishAvailability(toAvailabilityPayload(inv));
         log.info("Estoque reduzido para bookId={}, amount={}, novo total={}", bookId, amount, inv.getTotalCopies());
         return inventoryMapper.toResponse(inv);
+    }
+
+    private static BookAvailabilityPayload toAvailabilityPayload(Inventory inv) {
+        return BookAvailabilityPayload.builder()
+                .bookId(inv.getBookId())
+                .totalCopies(inv.getTotalCopies())
+                .availableCopies(inv.getAvailableCopies())
+                .updatedAt(inv.getUpdatedAt())
+                .build();
     }
 }

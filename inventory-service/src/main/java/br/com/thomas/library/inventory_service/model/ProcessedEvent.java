@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 
 /**
  * Registro de evento de rental recebido (idempotência).
- * PK = id_evento. Status: PROCESSADO (1) ou REJEITADO (2) — rejeitados são salvos para não reprocessar e para auditoria.
+ * PK = id_evento. Status: PROCESSADO (1) ou REJEITADO (2). id_usuario propagado do rental-service.
  */
 @Entity
 @Table(name = "tb_evento_processado")
@@ -28,6 +28,10 @@ public class ProcessedEvent {
     @NotNull
     @Column(name = "id_aluguel", nullable = false)
     private Long rentalId;
+
+    @NotNull
+    @Column(name = "id_usuario", nullable = false)
+    private Long userId;
 
     @NotNull
     @Column(name = "id_livro", nullable = false)
