@@ -1,8 +1,10 @@
 package br.com.thomas.library.search_service.controller;
 
 import br.com.thomas.library.search_service.dto.response.BookSearchResponse;
+import br.com.thomas.library.search_service.dto.response.InventorySummaryResponse;
 import br.com.thomas.library.search_service.dto.response.PagedBookSearchResponse;
 import br.com.thomas.library.search_service.service.BookSearchService;
+import br.com.thomas.library.search_service.service.InventorySummaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class BookSearchController {
 
     private final BookSearchService bookSearchService;
+    private final InventorySummaryService inventorySummaryService;
 
     /**
      * Busca parametrizada de livros com filtros e paginação.
@@ -56,6 +59,29 @@ public class BookSearchController {
                 q, category, genre, publishedYearFrom, publishedYearTo,
                 title, author, isbn, active, all, availableOnly, sortBy, sortDir, pageable);
 
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Totais informativos para inventário (agregações no índice). Mesmos filtros opcionais da busca, sem paginação.
+     */
+    @GetMapping("/summary/inventory")
+    public ResponseEntity<InventorySummaryResponse> inventorySummary(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) Integer publishedYearFrom,
+            @RequestParam(required = false) Integer publishedYearTo,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String author,
+            @RequestParam(required = false) String isbn,
+            @RequestParam(required = false, defaultValue = "true") Boolean active,
+            @RequestParam(required = false, defaultValue = "false") Boolean all,
+            @RequestParam(required = false, defaultValue = "false") Boolean availableOnly) {
+
+        InventorySummaryResponse response = inventorySummaryService.summarize(
+                q, category, genre, publishedYearFrom, publishedYearTo,
+                title, author, isbn, active, all, availableOnly);
         return ResponseEntity.ok(response);
     }
 

@@ -29,3 +29,10 @@ export interface PagedBookSearchResponse {
 }
 
 export type Book = BookSearchResponse;
+
+/** Totais agregados (search-service / Elasticsearch) para o resumo do inventário. */
+export interface InventorySummaryResponse {
+  totalBooks: number;
+  totalAvailableCopies: number;
+  booksWithReservedCopies: number;
+}
