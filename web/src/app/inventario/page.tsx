@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, Fragment } from "react";
+import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { fetchInventorySummary, searchBooks } from "@/lib/api/search";
 import { createBook, updateBook, deleteBook, type CatalogBookRequest } from "@/lib/api/catalog";
@@ -80,6 +80,8 @@ export default function InventarioPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [summary, setSummary] = useState<InventorySummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
 
@@ -95,48 +97,64 @@ export default function InventarioPage() {
   const [modalKind, setModalKind] = useState<ModalKind>(null);
   const [modalBook, setModalBook] = useState<BookSearchResponse | null>(null);
 
-  const loadBooks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await searchBooks({
-        all: activeFilter === "all",
-        active: activeFilter === "all" ? undefined : activeFilter,
-        title: titleFilter.trim() || undefined,
-        author: authorFilter.trim() || undefined,
-        publishedYearFrom: yearFromFilter ? parseInt(yearFromFilter, 10) : undefined,
-        publishedYearTo: yearToFilter ? parseInt(yearToFilter, 10) : undefined,
-        isbn: isbnFilter.trim() || undefined,
-        availableOnly: availableOnlyFilter || undefined,
-        page,
-        size: PAGE_SIZE,
-        sortBy: "title",
-        sortDir: "asc",
-      });
-      setBooks(res.content);
-      setTotalElements(res.totalElements);
-      setTotalPages(res.totalPages);
-    } catch (e) {
-      if (e instanceof ApiError) {
-        if (e.isClientError) showErrorModal(e.message);
-        else if (e.isServerError) alert(`Erro de servidor: ${e.message}`);
+  const hasMore = totalPages > 0 && page < totalPages - 1;
+
+  const runLoadBooks = useCallback(
+    async (pageNum: number = 0, append: boolean = false) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
       }
-      setBooks([]);
-      setTotalElements(0);
-      setTotalPages(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    page,
-    titleFilter,
-    authorFilter,
-    yearFromFilter,
-    yearToFilter,
-    isbnFilter,
-    availableOnlyFilter,
-    activeFilter,
-    showErrorModal,
-  ]);
+      try {
+        const res = await searchBooks({
+          all: activeFilter === "all",
+          active: activeFilter === "all" ? undefined : activeFilter,
+          title: titleFilter.trim() || undefined,
+          author: authorFilter.trim() || undefined,
+          publishedYearFrom: yearFromFilter ? parseInt(yearFromFilter, 10) : undefined,
+          publishedYearTo: yearToFilter ? parseInt(yearToFilter, 10) : undefined,
+          isbn: isbnFilter.trim() || undefined,
+          availableOnly: availableOnlyFilter || undefined,
+          page: pageNum,
+          size: PAGE_SIZE,
+          sortBy: "title",
+          sortDir: "asc",
+        });
+        if (append) {
+          setBooks((prev) => [...prev, ...res.content]);
+        } else {
+          setBooks(res.content);
+        }
+        setTotalElements(res.totalElements);
+        setTotalPages(res.totalPages);
+        setPage(pageNum);
+      } catch (e) {
+        if (e instanceof ApiError) {
+          if (e.isClientError) showErrorModal(e.message);
+          else if (e.isServerError) alert(`Erro de servidor: ${e.message}`);
+        }
+        if (!append) {
+          setBooks([]);
+          setTotalElements(0);
+          setTotalPages(0);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [
+      titleFilter,
+      authorFilter,
+      yearFromFilter,
+      yearToFilter,
+      isbnFilter,
+      availableOnlyFilter,
+      activeFilter,
+      showErrorModal,
+    ]
+  );
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -172,13 +190,28 @@ export default function InventarioPage() {
       router.replace("/");
       return;
     }
-    loadBooks();
-  }, [profile, router, loadBooks]);
+    void runLoadBooks(0, false);
+  }, [profile, router, runLoadBooks]);
 
   useEffect(() => {
     if (profile !== "gestor") return;
     void loadSummary();
   }, [profile, loadSummary]);
+
+  // Infinite scroll: mais 25 quando o sentinela entrar na viewport (igual /pesquisa)
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loading || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        void runLoadBooks(page + 1, true);
+      },
+      { rootMargin: "200px", threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, page, runLoadBooks]);
 
   const handleRowClick = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -320,7 +353,7 @@ export default function InventarioPage() {
 
         {/* Tabela */}
         <section className="rounded-2xl bg-white shadow-sm overflow-hidden">
-          {loading ? (
+          {loading && books.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">Carregando…</div>
           ) : books.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">Nenhum livro encontrado.</div>
@@ -401,33 +434,18 @@ export default function InventarioPage() {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-              <div className="text-sm text-gray-600">
-                Mostrando {(page * PAGE_SIZE) + 1} a {Math.min((page + 1) * PAGE_SIZE, totalElements)} de {totalElements} itens
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
-                >
-                  Anterior
-                </button>
-                <span className="flex items-center px-2 text-sm text-gray-600">
-                  Página {page + 1} de {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  disabled={page >= totalPages - 1}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
-                >
-                  Próxima
-                </button>
-              </div>
+          {hasMore && books.length > 0 && (
+            <div ref={sentinelRef} className="h-4 w-full" aria-hidden />
+          )}
+          {loadingMore && (
+            <div className="flex justify-center border-t border-gray-100 px-4 py-3">
+              <span className="text-sm text-gray-500">Carregando mais…</span>
             </div>
+          )}
+          {!hasMore && books.length > 0 && totalElements > 0 && (
+            <p className="border-t border-gray-100 px-4 py-3 text-center text-sm text-gray-500">
+              {totalElements} {totalElements === 1 ? "livro" : "livros"} no total.
+            </p>
           )}
         </section>
       </main>
@@ -437,7 +455,7 @@ export default function InventarioPage() {
           book={modalKind === "book-add" ? null : modalBook}
           onClose={closeModal}
           onSuccess={() => {
-            void loadBooks();
+            void runLoadBooks(0, false);
             void loadSummary();
           }}
           showErrorModal={showErrorModal}
@@ -449,10 +467,10 @@ export default function InventarioPage() {
           onClose={closeModal}
           onPatchInventory={patchBookInventory}
           onSearchResync={() => {
-            void loadBooks();
+            void runLoadBooks(0, false);
             void loadSummary();
             window.setTimeout(() => {
-              void loadBooks();
+              void runLoadBooks(0, false);
               void loadSummary();
             }, 1200);
           }}
