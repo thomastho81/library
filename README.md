@@ -141,3 +141,7 @@ docker compose -f docker-compose-network.yml down
 | `web/`             | Interface Next.js                 |
 
 Documentação adicional costuma estar em `docs/` ou em `docs/` dentro de cada serviço.
+
+---
+
+Considere responder a pesquisa sobre o projeto para me ajudar com a experiência do usuário sobre o sistema no link do google forms: https://docs.google.com/forms/d/e/1FAIpQLScsk2fQWmGNEIzyhzXty4CWKkOLIAu3DwYCOD1A6wWdMMnVgw/viewform?usp=dialog
