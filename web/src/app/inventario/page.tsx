@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { searchBooks } from "@/lib/api/search";
+import { fetchInventorySummary, searchBooks } from "@/lib/api/search";
 import { createBook, updateBook, deleteBook, type CatalogBookRequest } from "@/lib/api/catalog";
 import {
   increaseInventory,
@@ -13,7 +13,8 @@ import { ApiError } from "@/lib/api/errors";
 import { useErrorModal } from "@/contexts/ErrorModalContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import ProfileSwitcher from "@/components/layout/ProfileSwitcher";
-import type { BookSearchResponse } from "@/lib/types/book";
+import InventorySummaryCards from "@/components/inventory/InventorySummaryCards";
+import type { BookSearchResponse, InventorySummaryResponse } from "@/lib/types/book";
 
 const PAGE_SIZE = 25;
 
@@ -79,6 +80,8 @@ export default function InventarioPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<InventorySummaryResponse | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   const [titleFilter, setTitleFilter] = useState("");
   const [authorFilter, setAuthorFilter] = useState("");
@@ -135,6 +138,35 @@ export default function InventarioPage() {
     showErrorModal,
   ]);
 
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const res = await fetchInventorySummary({
+        all: activeFilter === "all",
+        active: activeFilter === "all" ? undefined : activeFilter,
+        title: titleFilter.trim() || undefined,
+        author: authorFilter.trim() || undefined,
+        publishedYearFrom: yearFromFilter ? parseInt(yearFromFilter, 10) : undefined,
+        publishedYearTo: yearToFilter ? parseInt(yearToFilter, 10) : undefined,
+        isbn: isbnFilter.trim() || undefined,
+        availableOnly: availableOnlyFilter || undefined,
+      });
+      setSummary(res);
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [
+    titleFilter,
+    authorFilter,
+    yearFromFilter,
+    yearToFilter,
+    isbnFilter,
+    availableOnlyFilter,
+    activeFilter,
+  ]);
+
   useEffect(() => {
     if (profile !== "gestor") {
       router.replace("/");
@@ -142,6 +174,11 @@ export default function InventarioPage() {
     }
     loadBooks();
   }, [profile, router, loadBooks]);
+
+  useEffect(() => {
+    if (profile !== "gestor") return;
+    void loadSummary();
+  }, [profile, loadSummary]);
 
   const handleRowClick = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -205,6 +242,8 @@ export default function InventarioPage() {
       </div>
 
       <main className="flex-1 overflow-y-auto px-4 pb-6">
+        <InventorySummaryCards summary={summary} loading={summaryLoading} />
+
         {/* Filtros */}
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -397,7 +436,10 @@ export default function InventarioPage() {
         <BookEditModal
           book={modalKind === "book-add" ? null : modalBook}
           onClose={closeModal}
-          onSuccess={loadBooks}
+          onSuccess={() => {
+            void loadBooks();
+            void loadSummary();
+          }}
           showErrorModal={showErrorModal}
         />
       ) : null}
@@ -408,7 +450,11 @@ export default function InventarioPage() {
           onPatchInventory={patchBookInventory}
           onSearchResync={() => {
             void loadBooks();
-            window.setTimeout(() => void loadBooks(), 1200);
+            void loadSummary();
+            window.setTimeout(() => {
+              void loadBooks();
+              void loadSummary();
+            }, 1200);
           }}
           showErrorModal={showErrorModal}
         />

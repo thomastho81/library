@@ -3,10 +3,9 @@ package br.com.thomas.library.search_service.service;
 import br.com.thomas.library.search_service.document.BookDocument;
 import br.com.thomas.library.search_service.dto.response.BookSearchResponse;
 import br.com.thomas.library.search_service.dto.response.PagedBookSearchResponse;
+import br.com.thomas.library.search_service.query.BookIndexQueryFactory;
 import br.com.thomas.library.search_service.repository.BookDocumentRepository;
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch._types.query_dsl.RangeQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -19,7 +18,6 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +35,7 @@ public class BookSearchService {
 
     private final BookDocumentRepository bookDocumentRepository;
     private final ElasticsearchOperations elasticsearchOperations;
+    private final BookIndexQueryFactory bookIndexQueryFactory;
 
     /**
      * Busca parametrizada de livros com paginação (padrão 25 por página).
@@ -91,7 +90,9 @@ public class BookSearchService {
         long totalElements;
         List<BookSearchResponse> content;
 
-        Optional<Query> nativeQuery = buildNativeQuery(q, category, genre, publishedYearFrom, publishedYearTo, title, author, isbn, filterByActive, activeFilter, availableFilter);
+        Optional<Query> nativeQuery = bookIndexQueryFactory.buildBookFilterQuery(
+                q, category, genre, publishedYearFrom, publishedYearTo,
+                title, author, isbn, filterByActive, activeFilter, availableFilter);
         if (nativeQuery.isEmpty()) {
             Page<BookDocument> page = bookDocumentRepository.findAll(effectivePageable);
             totalElements = page.getTotalElements();
@@ -141,84 +142,6 @@ public class BookSearchService {
         }
         log.debug("Livro encontrado: id={}, title={}", id, doc.get().getTitle());
         return Optional.of(toResponse(doc.get()));
-    }
-
-    /**
-     * Constrói a query nativa (BoolQuery) com wildcards case-insensitive para genre, category, title, author
-     * e com o parâmetro q buscando em title, author, description, genre e category.
-     * Retorna empty quando não há filtros (match-all).
-     */
-    private Optional<Query> buildNativeQuery(String q, String category, String genre,
-                                             Integer publishedYearFrom, Integer publishedYearTo,
-                                             String title, String author, String isbn,
-                                             boolean filterByActive, boolean active, boolean availableOnly) {
-        List<Query> filterClauses = new ArrayList<>();
-
-        // q: bool should com multi_match (title, author, description) + wildcard case_insensitive em genre e category
-        Query qClause = null;
-        if (q != null && !q.isBlank()) {
-            String term = q.trim();
-            String wildcardPattern = "*" + escapeWildcard(term) + "*";
-            List<Query> shouldClauses = new ArrayList<>();
-            shouldClauses.add(Query.of(qb -> qb.multiMatch(m -> m.query(term).fields("title", "author", "description"))));
-            shouldClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("genre").value(wildcardPattern).caseInsensitive(true))));
-            shouldClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("category").value(wildcardPattern).caseInsensitive(true))));
-            qClause = Query.of(qb -> qb.bool(b -> b.should(shouldClauses).minimumShouldMatch("1")));
-        }
-
-        // Filtros: genre, category, title, author com wildcard case_insensitive
-        if (genre != null && !genre.isBlank()) {
-            String pattern = "*" + escapeWildcard(genre.trim()) + "*";
-            filterClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("genre").value(pattern).caseInsensitive(true))));
-        }
-        if (category != null && !category.isBlank()) {
-            String pattern = "*" + escapeWildcard(category.trim()) + "*";
-            filterClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("category").value(pattern).caseInsensitive(true))));
-        }
-        if (title != null && !title.isBlank()) {
-            String pattern = "*" + escapeWildcard(title.trim()) + "*";
-            filterClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("title.keyword").value(pattern).caseInsensitive(true))));
-        }
-        if (author != null && !author.isBlank()) {
-            String pattern = "*" + escapeWildcard(author.trim()) + "*";
-            filterClauses.add(Query.of(qb -> qb.wildcard(w -> w.field("author.keyword").value(pattern).caseInsensitive(true))));
-        }
-        if (isbn != null && !isbn.isBlank()) {
-            String exact = isbn.trim();
-            filterClauses.add(Query.of(qb -> qb.term(t -> t.field("isbn").value(exact))));
-        }
-        if (filterByActive) {
-            boolean activeVal = active;
-            filterClauses.add(Query.of(qb -> qb.term(t -> t.field("active").value(activeVal))));
-        }
-        if (publishedYearFrom != null) {
-            int from = publishedYearFrom;
-            filterClauses.add(Query.of(qb -> qb.range(RangeQuery.of(r -> r.number(n -> n.field("publishedYear").gte((double) from))))));
-        }
-        if (publishedYearTo != null) {
-            int to = publishedYearTo;
-            filterClauses.add(Query.of(qb -> qb.range(RangeQuery.of(r -> r.number(n -> n.field("publishedYear").lte((double) to))))));
-        }
-        if (availableOnly) {
-            filterClauses.add(Query.of(qb -> qb.range(RangeQuery.of(r -> r.number(n -> n.field("availableCopies").gte(1.0))))));
-        }
-
-        if (qClause == null && filterClauses.isEmpty()) {
-            return Optional.empty();
-        }
-
-        final Query qMust = qClause;
-        BoolQuery boolQuery = BoolQuery.of(b -> {
-            if (qMust != null) b.must(qMust);
-            b.filter(filterClauses);
-            return b;
-        });
-        return Optional.of(Query.of(qb -> qb.bool(boolQuery)));
-    }
-
-    /** Escapa caracteres especiais do wildcard do Elasticsearch: \\ * ? */
-    private static String escapeWildcard(String value) {
-        return value.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?");
     }
 
     private Sort buildSort(String sortBy, String sortDir, String q) {
