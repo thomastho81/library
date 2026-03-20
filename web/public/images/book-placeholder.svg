@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 220" width="140" height="220">
+  <defs>
+    <linearGradient id="bookBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="100%" style="stop-color:#1e3a8a"/>
+    </linearGradient>
+  </defs>
+  <rect width="140" height="220" rx="4" fill="url(#bookBg)"/>
+  <rect x="12" y="16" width="116" height="188" rx="2" fill="rgba(255,255,255,0.12)"/>
+  <path d="M40 70 L100 70 M40 90 L95 90 M40 110 L98 110 M40 130 L92 130" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="70" cy="165" r="18" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+  <path d="M70 152 L70 178 M58 165 L82 165" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

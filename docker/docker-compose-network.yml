@@ -1,11 +1,14 @@
-# Docker Compose - Biblioteca distribuída (ambiente local / desenvolvimento)
-# Centraliza: PostgreSQL (catalog, inventory, rental), RabbitMQ, Elasticsearch, Kibana.
-# Uso: a partir da pasta docker/ execute: docker compose up -d
-# Linux: para Elasticsearch, pode ser necessário: sudo sysctl -w vm.max_map_count=262144
-# Kibana: interface gráfica do Elasticsearch em http://localhost:5601
+# Infraestrutura e rede: PostgreSQL (catalog, inventory, rental), RabbitMQ, Elasticsearch.
+# Cria a rede nomeada `library_network` usada pelo docker-compose-app.yml.
+#
+# Uso (na pasta docker/):
+#   docker compose -f docker-compose-network.yml up -d
+# Depois suba a aplicação:
+#   docker compose -f docker-compose-app.yml up -d --build
+#
+# Linux: para Elasticsearch pode ser necessário: sudo sysctl -w vm.max_map_count=262144
 
 services:
-  # PostgreSQL do catalog-service
   postgres:
     image: postgres:16-alpine
     container_name: catalog-postgres
@@ -18,6 +21,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - library_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U catalog_user -d catalog_db"]
       interval: 10s
@@ -25,7 +30,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # PostgreSQL do inventory-service (banco separado por serviço)
   inventory-postgres:
     image: postgres:16-alpine
     container_name: inventory-postgres
@@ -38,6 +42,8 @@ services:
       - "5433:5432"
     volumes:
       - inventory_postgres_data:/var/lib/postgresql/data
+    networks:
+      - library_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U inventory_user -d inventory_db"]
       interval: 10s
@@ -45,7 +51,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # PostgreSQL do rental-service
   rental-postgres:
     image: postgres:16-alpine
     container_name: rental-postgres
@@ -58,6 +63,8 @@ services:
       - "5434:5432"
     volumes:
       - rental_postgres_data:/var/lib/postgresql/data
+    networks:
+      - library_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rental_user -d rental_db"]
       interval: 10s
@@ -65,7 +72,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # RabbitMQ compartilhado (catalog publica eventos; inventory e search-service consomem)
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: library-rabbitmq
@@ -76,6 +82,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    networks:
+      - library_network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -83,7 +91,6 @@ services:
       retries: 5
       start_period: 15s
 
-  # Elasticsearch para o search-service (índice de busca de livros)
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
     container_name: library-elasticsearch
@@ -97,25 +104,14 @@ services:
       - "9300:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - library_network
     healthcheck:
       test: ["CMD-SHELL", "curl -s -f http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 10
       start_period: 40s
-
-  # Kibana: interface gráfica do Elasticsearch (consultas, Discover, Dev Tools)
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.0
-    container_name: library-kibana
-    restart: unless-stopped
-    environment:
-      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
-    ports:
-      - "5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
 
 volumes:
   postgres_data:
@@ -126,3 +122,8 @@ volumes:
     name: rental_postgres_data
   elasticsearch_data:
     name: library_elasticsearch_data
+
+networks:
+  library_network:
+    name: library_network
+    driver: bridge

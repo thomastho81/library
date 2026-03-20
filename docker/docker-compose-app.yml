@@ -1,0 +1,93 @@
+# Aplicação: catalog, inventory, rental, search (Spring Boot) + web (Next.js).
+# Exige a rede externa `library_network` criada pelo docker-compose-network.yml.
+#
+# Uso (na pasta docker/):
+#   1) docker compose -f docker-compose-network.yml up -d
+#   2) Aguarde os healthchecks (especialmente Elasticsearch ~40s).
+#   3) docker compose -f docker-compose-app.yml up -d --build
+#
+# URLs no browser (NEXT_PUBLIC_*): localhost nas portas 8080–8083 e 3000.
+# Se um serviço reiniciar até o banco subir, é esperado (restart: unless-stopped).
+
+services:
+  catalog-service:
+    build:
+      context: ../catalog-service
+      dockerfile: Dockerfile
+    container_name: library-catalog-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/catalog_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  inventory-service:
+    build:
+      context: ../inventory-service
+      dockerfile: Dockerfile
+    container_name: library-inventory-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-postgres:5432/inventory_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  rental-service:
+    build:
+      context: ../rental-service
+      dockerfile: Dockerfile
+    container_name: library-rental-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://rental-postgres:5432/rental_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  search-service:
+    build:
+      context: ../search-service
+      dockerfile: Dockerfile
+    container_name: library-search-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CATALOG_API_URL: http://localhost:8080
+        NEXT_PUBLIC_INVENTORY_API_URL: http://localhost:8081
+        NEXT_PUBLIC_RENTAL_API_URL: http://localhost:8082
+        NEXT_PUBLIC_SEARCH_API_URL: http://localhost:8083
+    container_name: library-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - library_network
+    depends_on:
+      - catalog-service
+      - inventory-service
+      - rental-service
+      - search-service
+
+networks:
+  library_network:
+    external: true
+    name: library_network

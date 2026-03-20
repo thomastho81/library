@@ -1,0 +1,79 @@
+# Mesma stack que docker-compose-app.yml, mas usando imagens já buildadas no GHCR
+# (publicadas pelo workflow .github/workflows/publish-container-images.yml na branch main).
+#
+# Pré-requisito: docker-compose-network.yml em execução (rede library_network).
+#
+# Na pasta docker/:
+#   cp .env.registry.example .env.registry
+#   docker compose --env-file .env.registry -f docker-compose-app.registry.yml pull
+#   docker compose --env-file .env.registry -f docker-compose-app.registry.yml up -d
+#
+# Pacotes privados no GHCR: docker login ghcr.io (PAT com read:packages).
+
+services:
+  catalog-service:
+    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/catalog-service:${IMAGE_TAG}
+    container_name: library-catalog-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/catalog_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  inventory-service:
+    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/inventory-service:${IMAGE_TAG}
+    container_name: library-inventory-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-postgres:5432/inventory_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  rental-service:
+    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/rental-service:${IMAGE_TAG}
+    container_name: library-rental-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://rental-postgres:5432/rental_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  search-service:
+    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/search-service:${IMAGE_TAG}
+    container_name: library-search-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_RABBITMQ_HOST: rabbitmq
+    networks:
+      - library_network
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/web:${IMAGE_TAG}
+    container_name: library-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - library_network
+    depends_on:
+      - catalog-service
+      - inventory-service
+      - rental-service
+      - search-service
+
+networks:
+  library_network:
+    external: true
+    name: library_network
