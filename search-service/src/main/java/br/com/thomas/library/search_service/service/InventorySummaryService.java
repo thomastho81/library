@@ -33,9 +33,6 @@ public class InventorySummaryService {
     private static final String AGG_BOOKS_WITH_RESERVED = "books_with_reserved_copies";
 
     /**
-     * Livros com alguma cópia não disponível (total &gt; disponível), avaliado por documento no índice.
-     */
-    /**
      * 1 por documento com estoque parcialmente indisponível (total &gt; disponível), 0 caso contrário.
      */
     private static final String SCRIPT_COUNT_RESERVED_BOOKS =
@@ -72,9 +69,11 @@ public class InventorySummaryService {
         Script countReservedBooksScript =
                 Script.of(sc -> sc.source(SCRIPT_COUNT_RESERVED_BOOKS).lang(ScriptLanguage.Painless));
 
+        // size da página não pode ser 0 (Pageable do Spring exige >= 1); agregações não dependem dos hits.
         NativeQuery nativeQuery = NativeQuery.builder()
                 .withQuery(rootQuery)
-                .withPageable(PageRequest.of(0, 0))
+                .withPageable(PageRequest.of(0, 1))
+                .withMaxResults(0)
                 .withAggregation(AGG_SUM_AVAILABLE, Aggregation.of(a -> a.sum(s -> s.field("availableCopies").missing(0.0))))
                 .withAggregation(
                         AGG_BOOKS_WITH_RESERVED,
