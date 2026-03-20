@@ -12,9 +12,9 @@ Credenciais e portas padrão estão alinhadas com `docker/docker-compose-network
 
 ---
 
-## 1. Subir tudo localmente com Docker
+## 1. Subir tudo com Docker (imagens do GHCR, sem build local)
 
-Infraestrutura (bancos, RabbitMQ, Elasticsearch e rede `library_network`) e, em seguida, os cinco containers da aplicação.
+Você precisa do repositório (ou pelo menos da pasta `docker/` com os `docker-compose*.yml`) para a **infra** e para o arquivo que aponta às imagens. **Não** é necessário fazer build das APIs nem do front: as imagens são publicadas na branch `main` pelo workflow [.github/workflows/publish-container-images.yml](.github/workflows/publish-container-images.yml) no **GitHub Container Registry** (`ghcr.io/thomastho81/library/...`).
 
 Na pasta **`docker/`**:
 
@@ -22,8 +22,9 @@ Na pasta **`docker/`**:
 # 1) Rede + serviços complementares (aguarde o Elasticsearch ficar saudável, ~40s ou mais)
 docker compose -f docker-compose-network.yml up -d
 
-# 2) APIs + front (build na primeira vez)
-docker compose -f docker-compose-app.yml up -d --build
+# 2) APIs + front: apenas pull das imagens e subida (sem --build)
+docker compose -f docker-compose-app.registry.yml pull
+docker compose -f docker-compose-app.registry.yml up -d
 ```
 
 - **Front:** http://localhost:3000  
@@ -34,7 +35,7 @@ docker compose -f docker-compose-app.yml up -d --build
 Para encerrar os containers da aplicação (mantendo a infra):
 
 ```bash
-docker compose -f docker-compose-app.yml down
+docker compose -f docker-compose-app.registry.yml down
 ```
 
 Para encerrar infra + rede (volumes persistem, salvo uso de `-v`):
@@ -45,9 +46,17 @@ docker compose -f docker-compose-network.yml down
 
 > **Linux:** se o Elasticsearch não subir, tente: `sudo sysctl -w vm.max_map_count=262144`.
 
-### Imagens pré-buildadas (GHCR)
+### Fork ou pacotes privados no GHCR
 
-Em cada push na branch `main`, o workflow [.github/workflows/publish-container-images.yml](.github/workflows/publish-container-images.yml) faz build e push para o **GitHub Container Registry**. Para subir só com `pull` (sem `--build` local), use `docker/docker-compose-app.registry.yml` e um ficheiro `docker/.env.registry` (ex.: copiar [docker/.env.registry.example](docker/.env.registry.example)). Passo a passo completo: [docs/ghcr-e-github-actions.md](docs/ghcr-e-github-actions.md).
+O arquivo [docker/docker-compose-app.registry.yml](docker/docker-compose-app.registry.yml) usa por padrão `thomastho81` / `library` / tag `main`. Para outro dono, repositório ou tag, crie `docker/.env` (pode copiar [docker/.env.registry.example](docker/.env.registry.example)) com `GHCR_OWNER`, `GHCR_REPO` e `IMAGE_TAG`. Se os pacotes forem privados, use `docker login ghcr.io` com um PAT com `read:packages`.
+
+### Build local das imagens (opcional, para desenvolvimento)
+
+Quem alterar código e quiser construir os containers a partir do monorepo pode usar [docker/docker-compose-app.yml](docker/docker-compose-app.yml):
+
+```bash
+docker compose -f docker-compose-app.yml up -d --build
+```
 
 ### Dados `data.sql` e reinícios
 
@@ -124,7 +133,7 @@ docker compose -f docker-compose-network.yml down
 
 | Pasta              | Conteúdo                          |
 |--------------------|-----------------------------------|
-| `docker/`          | `docker-compose-network.yml`, `docker-compose-app.yml` |
+| `docker/`          | `docker-compose-network.yml`, `docker-compose-app.registry.yml` (pull GHCR), `docker-compose-app.yml` (build local) |
 | `catalog-service/` | API do catálogo de livros         |
 | `inventory-service/` | Cópias / disponibilidade      |
 | `rental-service/`  | Aluguéis / usuários               |

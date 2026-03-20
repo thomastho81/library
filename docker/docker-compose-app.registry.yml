@@ -1,18 +1,18 @@
 # Mesma stack que docker-compose-app.yml, mas usando imagens já buildadas no GHCR
-# (publicadas pelo workflow .github/workflows/publish-container-images.yml na branch main).
+# (workflow .github/workflows/publish-container-images.yml na branch main).
 #
 # Pré-requisito: docker-compose-network.yml em execução (rede library_network).
 #
-# Na pasta docker/:
-#   cp .env.registry.example .env.registry
-#   docker compose --env-file .env.registry -f docker-compose-app.registry.yml pull
-#   docker compose --env-file .env.registry -f docker-compose-app.registry.yml up -d
+# Na pasta docker/ (não precisa de ficheiro .env; defaults = thomastho81/library:main):
+#   docker compose -f docker-compose-app.registry.yml pull
+#   docker compose -f docker-compose-app.registry.yml up -d
 #
+# Fork / outra tag: exporte GHCR_OWNER, GHCR_REPO, IMAGE_TAG ou crie docker/.env com essas variáveis.
 # Pacotes privados no GHCR: docker login ghcr.io (PAT com read:packages).
 
 services:
   catalog-service:
-    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/catalog-service:${IMAGE_TAG}
+    image: ghcr.io/${GHCR_OWNER:-thomastho81}/${GHCR_REPO:-library}/catalog-service:${IMAGE_TAG:-main}
     container_name: library-catalog-service
     restart: unless-stopped
     ports:
@@ -24,7 +24,7 @@ services:
       - library_network
 
   inventory-service:
-    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/inventory-service:${IMAGE_TAG}
+    image: ghcr.io/${GHCR_OWNER:-thomastho81}/${GHCR_REPO:-library}/inventory-service:${IMAGE_TAG:-main}
     container_name: library-inventory-service
     restart: unless-stopped
     ports:
@@ -36,7 +36,7 @@ services:
       - library_network
 
   rental-service:
-    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/rental-service:${IMAGE_TAG}
+    image: ghcr.io/${GHCR_OWNER:-thomastho81}/${GHCR_REPO:-library}/rental-service:${IMAGE_TAG:-main}
     container_name: library-rental-service
     restart: unless-stopped
     ports:
@@ -48,7 +48,7 @@ services:
       - library_network
 
   search-service:
-    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/search-service:${IMAGE_TAG}
+    image: ghcr.io/${GHCR_OWNER:-thomastho81}/${GHCR_REPO:-library}/search-service:${IMAGE_TAG:-main}
     container_name: library-search-service
     restart: unless-stopped
     ports:
@@ -60,7 +60,7 @@ services:
       - library_network
 
   web:
-    image: ghcr.io/${GHCR_OWNER}/${GHCR_REPO}/web:${IMAGE_TAG}
+    image: ghcr.io/${GHCR_OWNER:-thomastho81}/${GHCR_REPO:-library}/web:${IMAGE_TAG:-main}
     container_name: library-web
     restart: unless-stopped
     ports:
