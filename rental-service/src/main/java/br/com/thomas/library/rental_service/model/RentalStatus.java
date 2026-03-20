@@ -16,7 +16,8 @@ public enum RentalStatus {
     RETURNED(2, "Devolvido"),
     CANCELLED(3, "Cancelado"),
     RESERVE_FAILED(4, "Reserva processada com erro"),
-    RETURNING(5, "Em devolução");
+    /** Usuário solicitou devolução; aguardando gestor confirmar recebimento. */
+    RETURN_REQUESTED(5, "Devolução solicitada (aguardando gestor)");
 
     private final int id;
     private final String descricao;

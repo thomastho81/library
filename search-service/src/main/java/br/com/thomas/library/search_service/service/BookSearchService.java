@@ -53,6 +53,7 @@ public class BookSearchService {
      * @param all              quando true, ignora active e retorna todos (ativos e inativos)
      * @param availableOnly    apenas com availableCopies >= 1
      * @param sortBy           campo de ordenação (title, author, publishedYear, updatedAt, availableCopies)
+     * @param sortDir          direção: asc ou desc (opcional; default por campo)
      * @param pageable         paginação (default 25 por página, size máximo 100)
      */
     public PagedBookSearchResponse search(
@@ -68,13 +69,14 @@ public class BookSearchService {
             Boolean all,
             Boolean availableOnly,
             String sortBy,
+            String sortDir,
             Pageable pageable) {
 
         int pageNumber = pageable.getPageNumber() >= 0 ? pageable.getPageNumber() : 0;
         int pageSize = pageable.getPageSize() > 0 && pageable.getPageSize() <= 100
                 ? pageable.getPageSize()
                 : DEFAULT_PAGE_SIZE;
-        Sort sort = buildSort(sortBy, q);
+        Sort sort = buildSort(sortBy, sortDir, q);
         Pageable effectivePageable = PageRequest.of(pageNumber, pageSize, sort);
 
         boolean includeAll = Boolean.TRUE.equals(all);
@@ -83,8 +85,8 @@ public class BookSearchService {
         boolean availableFilter = Boolean.TRUE.equals(availableOnly);
 
         String requestId = UUID.randomUUID().toString().substring(0, 8);
-        log.info("[requestId={}] Busca de livros | params: q={}, category={}, genre={}, publishedYearFrom={}, publishedYearTo={}, title={}, author={}, isbn={}, active={}, all={}, availableOnly={}, sortBy={}, page={}, size={}",
-                requestId, q, category, genre, publishedYearFrom, publishedYearTo, title, author, isbn, activeFilter, includeAll, availableFilter, sortBy, pageNumber, pageSize);
+        log.info("[requestId={}] Busca de livros | params: q={}, category={}, genre={}, publishedYearFrom={}, publishedYearTo={}, title={}, author={}, isbn={}, active={}, all={}, availableOnly={}, sortBy={}, sortDir={}, page={}, size={}",
+                requestId, q, category, genre, publishedYearFrom, publishedYearTo, title, author, isbn, activeFilter, includeAll, availableFilter, sortBy, sortDir, pageNumber, pageSize);
 
         long totalElements;
         List<BookSearchResponse> content;
@@ -219,20 +221,23 @@ public class BookSearchService {
         return value.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?");
     }
 
-    private Sort buildSort(String sortBy, String q) {
+    private Sort buildSort(String sortBy, String sortDir, String q) {
+        Sort.Direction direction = (sortDir != null && sortDir.equalsIgnoreCase("desc"))
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
         if (sortBy != null && !sortBy.isBlank()) {
             return switch (sortBy.toLowerCase()) {
-                case "author" -> Sort.by(Sort.Direction.ASC, "author.keyword");
-                case "publishedyear" -> Sort.by(Sort.Direction.DESC, "publishedYear");
-                case "updatedat" -> Sort.by(Sort.Direction.DESC, "updatedAt");
-                case "availablecopies" -> Sort.by(Sort.Direction.DESC, "availableCopies");
-                default -> Sort.by(Sort.Direction.ASC, "title.keyword");
+                case "author" -> Sort.by(direction, "author.keyword");
+                case "publishedyear" -> Sort.by(direction, "publishedYear");
+                case "updatedat" -> Sort.by(direction, "updatedAt");
+                case "availablecopies" -> Sort.by(direction, "availableCopies");
+                default -> Sort.by(direction, "title.keyword");
             };
         }
         if (q != null && !q.isBlank()) {
-            return Sort.by(Sort.Direction.DESC, "_score").and(Sort.by(Sort.Direction.ASC, "title.keyword"));
+            return Sort.by(Sort.Direction.DESC, "_score").and(Sort.by(direction, "title.keyword"));
         }
-        return Sort.by(Sort.Direction.ASC, "title.keyword");
+        return Sort.by(direction, "title.keyword");
     }
 
     private BookSearchResponse toResponse(BookDocument doc) {

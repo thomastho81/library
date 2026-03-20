@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 
 /**
  * Processa evento de resultado da devolução (inventory → rental).
- * Atualiza Rental de RETURNING (ou RESERVED) para RETURNED (sucesso) e preenche data de devolução.
- * Idempotente: só atualiza quando status é RETURNING ou RESERVED.
+ * Atualiza Rental de RESERVED para RETURNED (sucesso) e preenche data de devolução.
+ * Idempotente: só atualiza quando status é RESERVED.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,7 +35,7 @@ public class ReturnResultConsumerService {
             log.warn("Evento de resultado de devolução ignorado: Rental não encontrado rentalId={}", payload.getRentalId());
             return;
         }
-        if (rental.getStatus() != RentalStatus.RETURNING && rental.getStatus() != RentalStatus.RESERVED) {
+        if (rental.getStatus() != RentalStatus.RESERVED) {
             log.debug("Evento de resultado de devolução já aplicado ou não aplicável (idempotência): rentalId={}, status={}", payload.getRentalId(), rental.getStatus());
             return;
         }

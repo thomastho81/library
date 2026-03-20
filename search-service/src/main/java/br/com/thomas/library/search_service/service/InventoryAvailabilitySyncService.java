@@ -6,9 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 /**
  * Sincroniza a disponibilidade (total e cópias disponíveis) no índice de busca
@@ -35,15 +32,11 @@ public class InventoryAvailabilitySyncService {
                 doc -> {
                     doc.setTotalCopies(payload.getTotalCopies());
                     doc.setAvailableCopies(payload.getAvailableCopies());
-                    doc.setInventoryUpdatedAt(toInstant(payload.getUpdatedAt()));
+                    doc.setInventoryUpdatedAt(payload.getUpdatedAt());
                     bookDocumentRepository.save(doc);
                     log.debug("Disponibilidade atualizada no índice: bookId={}, available={}", payload.getBookId(), payload.getAvailableCopies());
                 },
                 () -> log.debug("Documento não encontrado no índice para bookId={}, ignorando disponibilidade", payload.getBookId())
         );
-    }
-
-    private static Instant toInstant(LocalDateTime dateTime) {
-        return dateTime == null ? null : dateTime.atZone(ZoneId.systemDefault()).toInstant();
     }
 }

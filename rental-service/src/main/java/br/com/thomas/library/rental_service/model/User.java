@@ -46,6 +46,12 @@ public class User {
     private Boolean active = true;
 
     @NotNull
+    @Convert(converter = UserProfileConverter.class)
+    @Column(name = "perfil", nullable = false)
+    @Builder.Default
+    private UserProfile profile = UserProfile.USER;
+
+    @NotNull
     @Column(name = "data_cadastro", nullable = false)
     private LocalDateTime registeredAt;
 }

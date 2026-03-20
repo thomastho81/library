@@ -7,9 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 /**
  * Sincroniza o índice de busca a partir dos eventos do catalog-service (catalog.book.created/updated/deleted).
@@ -60,15 +57,11 @@ public class CatalogSyncService {
                 .isbn(payload.getIsbn())
                 .publishedYear(payload.getPublishedYear())
                 .active(payload.getActive())
-                .createdAt(toInstant(payload.getCreatedAt()))
-                .updatedAt(toInstant(payload.getUpdatedAt()))
+                .createdAt(payload.getCreatedAt())
+                .updatedAt(payload.getUpdatedAt())
                 .totalCopies(null)
                 .availableCopies(null)
                 .inventoryUpdatedAt(null)
                 .build();
-    }
-
-    private static Instant toInstant(LocalDateTime dateTime) {
-        return dateTime == null ? null : dateTime.atZone(ZoneId.systemDefault()).toInstant();
     }
 }

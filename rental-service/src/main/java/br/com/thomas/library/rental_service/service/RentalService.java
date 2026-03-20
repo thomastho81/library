@@ -6,6 +6,7 @@ import br.com.thomas.library.rental_service.dto.response.PagedRentalResponse;
 import br.com.thomas.library.rental_service.dto.response.RentalResponse;
 import br.com.thomas.library.rental_service.model.Rental;
 import br.com.thomas.library.rental_service.model.RentalStatus;
+import br.com.thomas.library.rental_service.model.UserProfile;
 import br.com.thomas.library.rental_service.repository.RentalRepository;
 import br.com.thomas.library.rental_service.repository.UserRepository;
 import br.com.thomas.library.rental_service.service.propagation.PropagationService;
@@ -18,7 +19,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -109,18 +113,35 @@ public class RentalService {
     }
 
     /**
-     * Lista alugueis do usuário (meus alugueis / histórico) com paginação e ordenação.
+     * Lista alugueis do usuário (meus alugueis / histórico) com paginação, ordenação e filtros opcionais.
      * Ordenação: use sort=status ou sort=reservedAt (ex.: sort=reservedAt,desc).
      *
-     * @param userId   obrigatório
-     * @param statuses opcional; se vazio, retorna todos os status
+     * @param userId          obrigatório
+     * @param statuses        opcional; se vazio, retorna todos os status
+     * @param reservedAtFrom  opcional; data inicial (inclusive) do intervalo de reservedAt
+     * @param reservedAtTo    opcional; data final (inclusive) do intervalo de reservedAt
      */
-    public PagedRentalResponse listByUser(Long userId, List<RentalStatus> statuses, Pageable pageable) {
+    public PagedRentalResponse listByUser(Long userId, List<RentalStatus> statuses,
+                                          LocalDate reservedAtFrom, LocalDate reservedAtTo,
+                                          Pageable pageable) {
         validateUserExistsAndActive(userId);
 
-        Page<Rental> page = statuses != null && !statuses.isEmpty()
-                ? rentalRepository.findByUserIdAndStatusIn(userId, statuses, pageable)
-                : rentalRepository.findByUserId(userId, pageable);
+        // Usar limites concretos em vez de null para evitar "could not determine data type of parameter" no PostgreSQL.
+        LocalDateTime from = reservedAtFrom != null ? reservedAtFrom.atStartOfDay() : LocalDateTime.MIN;
+        LocalDateTime to = reservedAtTo != null ? reservedAtTo.atTime(LocalTime.MAX) : LocalDateTime.MAX;
+        boolean filterByDate = reservedAtFrom != null || reservedAtTo != null;
+        List<RentalStatus> statusList = (statuses != null && !statuses.isEmpty())
+                ? statuses
+                : Arrays.asList(RentalStatus.values());
+
+        Page<Rental> page;
+        if (filterByDate) {
+            page = rentalRepository.findByUserIdAndReservedAtBetweenAndStatusIn(userId, from, to, statusList, pageable);
+        } else if (statuses != null && !statuses.isEmpty()) {
+            page = rentalRepository.findByUserIdAndStatusIn(userId, statuses, pageable);
+        } else {
+            page = rentalRepository.findByUserId(userId, pageable);
+        }
 
         List<RentalResponse> content = page.getContent().stream()
                 .map(this::toResponse)
@@ -138,12 +159,38 @@ public class RentalService {
     }
 
     /**
-     * Registra devolução: valida que o rental existe, está RESERVED e pertence ao userId.
-     * Publica evento rental.inventory.return e coloca o rental em RETURNING.
+     * Lista alugueis com devolução solicitada (RETURN_REQUESTED), para a tela do gestor.
+     * Apenas usuário com perfil GESTOR pode chamar.
+     */
+    public PagedRentalResponse listPendingReturns(Long gestorUserId, Pageable pageable) {
+        var gestor = userRepository.findById(gestorUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário gestor não encontrado: id=" + gestorUserId));
+        if (!Boolean.TRUE.equals(gestor.getActive()) || gestor.getProfile() != UserProfile.GESTOR) {
+            throw new IllegalArgumentException("Apenas usuário com perfil GESTOR pode listar devoluções pendentes");
+        }
+        Page<Rental> page = rentalRepository.findByStatus(RentalStatus.RETURN_REQUESTED, pageable);
+        List<RentalResponse> content = page.getContent().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+        return PagedRentalResponse.builder()
+                .content(content)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .build();
+    }
+
+    /**
+     * Solicitação de devolução pelo usuário (ex.: entrega no balcão).
+     * Rental deve estar RESERVED e pertencer ao userId. Altera para RETURN_REQUESTED.
+     * Não publica evento para o inventory-service.
      */
     @Transactional
-    public RentalResponse registerReturn(Long rentalId, ReturnRequest request) {
-        validateUserExistsAndActive(request.getUserId());
+    public RentalResponse requestReturn(Long rentalId, Long userId) {
+        validateUserExistsAndActive(userId);
 
         Rental rental = rentalRepository.findById(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Rental não encontrado: id=" + rentalId));
@@ -151,19 +198,47 @@ public class RentalService {
             throw new IllegalStateException(
                     "Rental não está reservado: id=" + rentalId + ", status=" + rental.getStatus());
         }
-        if (!rental.getUserId().equals(request.getUserId())) {
+        if (!rental.getUserId().equals(userId)) {
             throw new IllegalStateException("Aluguel não pertence ao usuário informado");
         }
 
-        String eventId = UUID.randomUUID().toString();
+        rental.setStatus(RentalStatus.RETURN_REQUESTED);
+        rentalRepository.save(rental);
+        return toResponse(rental);
+    }
+
+    /**
+     * Confirmação de recebimento da devolução pelo gestor.
+     * Rental deve estar RETURN_REQUESTED. Valida que gestorUserId é usuário com perfil GESTOR.
+     * Altera para RETURNED, preenche returnedAt e publica evento para o inventory-service.
+     */
+    @Transactional
+    public RentalResponse confirmReturn(Long rentalId, Long gestorUserId) {
+        var gestor = userRepository.findById(gestorUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário gestor não encontrado: id=" + gestorUserId));
+        if (!Boolean.TRUE.equals(gestor.getActive())) {
+            throw new IllegalArgumentException("Usuário gestor inativo: id=" + gestorUserId);
+        }
+        if (gestor.getProfile() != UserProfile.GESTOR) {
+            throw new IllegalArgumentException("Apenas usuário com perfil GESTOR pode confirmar devolução");
+        }
+
+        Rental rental = rentalRepository.findById(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Rental não encontrado: id=" + rentalId));
+        if (rental.getStatus() != RentalStatus.RETURN_REQUESTED) {
+            throw new IllegalStateException(
+                    "Rental não está com devolução solicitada: id=" + rentalId + ", status=" + rental.getStatus());
+        }
+
         LocalDateTime now = LocalDateTime.now();
+        String eventId = UUID.randomUUID().toString();
         ReturnEventPayload payload = buildReturnEventPayload(eventId, rental.getId(), rental.getUserId(),
                 rental.getBookId(), rental.getQuantity(), now);
         propagationService.publishReturn(payload);
 
-        rental.setStatus(RentalStatus.RETURNING);
+        rental.setStatus(RentalStatus.RETURNED);
+        rental.setReturnedAt(now);
         rentalRepository.save(rental);
-
         return toResponse(rental);
     }
 

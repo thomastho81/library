@@ -29,7 +29,10 @@ public class PropagationService {
      */
     public void publishReserve(ReserveEventPayload payload) {
         String body = toJson(payload);
-        String endpointUri = String.format("spring-rabbitmq:%s?exchangeType=%s", exchangeName, EXCHANGE_TYPE_TOPIC);
+        // routingKey + skipDeclareQueue: publicação só na topic exchange (sem declarar fila no producer)
+        String endpointUri = String.format(
+                "spring-rabbitmq:%s?exchangeType=%s&routingKey=%s&skipDeclareQueue=true",
+                exchangeName, EXCHANGE_TYPE_TOPIC, ROUTING_KEY_RESERVE);
 
         fluentProducerTemplate
                 .to(endpointUri)
@@ -46,7 +49,9 @@ public class PropagationService {
      */
     public void publishReturn(ReturnEventPayload payload) {
         String body = toJson(payload);
-        String endpointUri = String.format("spring-rabbitmq:%s?exchangeType=%s", exchangeName, EXCHANGE_TYPE_TOPIC);
+        String endpointUri = String.format(
+                "spring-rabbitmq:%s?exchangeType=%s&routingKey=%s&skipDeclareQueue=true",
+                exchangeName, EXCHANGE_TYPE_TOPIC, ROUTING_KEY_RETURN);
 
         fluentProducerTemplate
                 .to(endpointUri)

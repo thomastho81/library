@@ -1,5 +1,6 @@
 package br.com.thomas.library.search_service.document;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,7 +12,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 /**
  * Documento de livro no Elasticsearch (índice de busca).
@@ -55,11 +56,17 @@ public class BookDocument {
     @Field(type = FieldType.Boolean)
     private Boolean active;
 
-    @Field(type = FieldType.Date)
-    private Instant createdAt;
+    /**
+     * Armazenado como Keyword para preservar o formato "yyyy-MM-dd'T'HH:mm:ss" no _source.
+     * Conversão LocalDateTime ↔ String feita por ElasticsearchDateTimeConverters.
+     */
+    @Field(type = FieldType.Keyword)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime createdAt;
 
-    @Field(type = FieldType.Date)
-    private Instant updatedAt;
+    @Field(type = FieldType.Keyword)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime updatedAt;
 
     @Field(type = FieldType.Integer)
     private Integer totalCopies;
@@ -67,6 +74,7 @@ public class BookDocument {
     @Field(type = FieldType.Integer)
     private Integer availableCopies;
 
-    @Field(type = FieldType.Date)
-    private Instant inventoryUpdatedAt;
+    @Field(type = FieldType.Keyword)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime inventoryUpdatedAt;
 }

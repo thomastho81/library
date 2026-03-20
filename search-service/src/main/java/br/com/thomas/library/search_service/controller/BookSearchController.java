@@ -49,11 +49,12 @@ public class BookSearchController {
             @RequestParam(required = false, defaultValue = "false") Boolean all,
             @RequestParam(required = false, defaultValue = "false") Boolean availableOnly,
             @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String sortDir,
             @PageableDefault(size = 25) Pageable pageable) {
 
         PagedBookSearchResponse response = bookSearchService.search(
                 q, category, genre, publishedYearFrom, publishedYearTo,
-                title, author, isbn, active, all, availableOnly, sortBy, pageable);
+                title, author, isbn, active, all, availableOnly, sortBy, sortDir, pageable);
 
         return ResponseEntity.ok(response);
     }
